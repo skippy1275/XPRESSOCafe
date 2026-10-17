@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">XPRESSO Cafe</string>
+    <string name="title_menu">XPRESSO Café Menu</string>
+    <string name="btn_fetch_menu">Fetch Menu from Database</string>
+    <string name="default_menu_output">Tap the button above to load items from XAMPP&#8230;</string>
+    <string name="connecting_server">Connecting to XAMPP server&#8230;</string>
+    <string name="api_error_prefix">API Error: %1$s</string>
+    <string name="http_error_code">HTTP Error Code: %1$d</string>
+    <string name="connection_failed">Connection Failed: %1$s\n\nNote: Ensure XAMPP is running and 10.0.2.2 is accessible.</string>
+</resources>
