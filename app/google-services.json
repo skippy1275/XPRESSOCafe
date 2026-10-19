@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "146070728495",
+    "project_id": "xpressocafe-92f80",
+    "storage_bucket": "xpressocafe-92f80.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:146070728495:android:48d81f7111ef793164bbda",
+        "android_client_info": {
+          "package_name": "com.example.xpressocafe"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "146070728495-t3fkd3otguecvugsvj9qp9s8o16b8kbk.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.xpressocafe",
+            "certificate_hash": "de3c89da352fa6ba84963fd745ed4b887ca1992f"
+          }
+        },
+        {
+          "client_id": "146070728495-da147j577nburfk17ptc7g4khn5udoug.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCVkEvoVxbmcPW0FzOsjvfKFaKhmU9bBDM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "146070728495-da147j577nburfk17ptc7g4khn5udoug.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
