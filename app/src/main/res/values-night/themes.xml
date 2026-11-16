@@ -1,7 +1,18 @@
 <resources>
-    <!-- Base application theme. -->
+    <!-- Dark application theme. -->
     <style name="Base.Theme.XPRESSOCafe" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your dark theme here. -->
-        <!-- <item name="colorPrimary">@color/my_dark_primary</item> -->
+        <item name="colorPrimary">@color/coffee_cream</item>
+        <item name="colorOnPrimary">@color/coffee_primary_dark</item>
+
+        <item name="colorSecondary">@color/coffee_accent</item>
+        <item name="colorOnSecondary">@color/white</item>
+
+        <item name="android:colorBackground">#1D1513</item>
+        <item name="colorSurface">#2A1F1C</item>
+        <item name="colorOnSurface">#F3ECE7</item>
+        <item name="colorOnSurfaceVariant">#C7BAB3</item>
+
+        <item name="android:statusBarColor">#150F0E</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>

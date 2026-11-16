@@ -1,8 +1,25 @@
 <resources>
     <!-- Base application theme. -->
     <style name="Base.Theme.XPRESSOCafe" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your light theme here. -->
-        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+        <!-- Coffee Theme Colors -->
+        <item name="colorPrimary">@color/coffee_primary</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorPrimaryContainer">@color/coffee_cream</item>
+        <item name="colorOnPrimaryContainer">@color/coffee_primary_dark</item>
+
+        <item name="colorSecondary">@color/coffee_secondary</item>
+        <item name="colorOnSecondary">@color/white</item>
+
+        <item name="colorTertiary">@color/coffee_accent</item>
+        <item name="colorOnTertiary">@color/white</item>
+
+        <item name="android:colorBackground">@color/coffee_background</item>
+        <item name="colorSurface">@color/coffee_surface</item>
+        <item name="colorOnSurface">@color/coffee_text_primary</item>
+        <item name="colorOnSurfaceVariant">@color/coffee_text_secondary</item>
+
+        <item name="android:statusBarColor">@color/coffee_primary_dark</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 
     <style name="Theme.XPRESSOCafe" parent="Base.Theme.XPRESSOCafe" />

@@ -1,60 +1,74 @@
 package com.example.xpressocafe
 
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.View
-import android.widget.Button
-import android.widget.EditText
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import org.json.JSONObject
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
-import java.net.URL
-import java.net.URLEncoder
-import java.util.concurrent.Executors
+import com.example.xpressocafe.api.ApiConfig
+import com.example.xpressocafe.models.ApiResponse
+import com.example.xpressocafe.network.NetworkHelper
+import com.example.xpressocafe.utils.JsonParser
+import com.example.xpressocafe.utils.SessionManager
+import com.example.xpressocafe.utils.ValidationUtils
+import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.textfield.TextInputEditText
 
+/**
+ * Settings Activity allowing user profile and password updates.
+ */
 class SettingsActivity : AppCompatActivity() {
 
-    private lateinit var etUpdateName: EditText
-    private lateinit var etUpdatePassword: EditText
-    private lateinit var btnUpdateSettings: Button
+    private lateinit var toolbarSettings: MaterialToolbar
+    private lateinit var tvCurrentName: TextView
+    private lateinit var tvCurrentEmail: TextView
+    private lateinit var etUpdateName: TextInputEditText
+    private lateinit var etUpdatePassword: TextInputEditText
+    private lateinit var btnUpdateSettings: MaterialButton
     private lateinit var progressBarSettings: ProgressBar
     private lateinit var tvSettingsStatus: TextView
 
-    private val executor = Executors.newSingleThreadExecutor()
-    private val handler = Handler(Looper.getMainLooper())
+    private lateinit var sessionManager: SessionManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
 
+        sessionManager = SessionManager(this)
+
+        toolbarSettings = findViewById(R.id.toolbarSettings)
+        toolbarSettings.setNavigationOnClickListener {
+            finish()
+        }
+
+        tvCurrentName = findViewById(R.id.tvCurrentName)
+        tvCurrentEmail = findViewById(R.id.tvCurrentEmail)
         etUpdateName = findViewById(R.id.etUpdateName)
         etUpdatePassword = findViewById(R.id.etUpdatePassword)
         btnUpdateSettings = findViewById(R.id.btnUpdateSettings)
         progressBarSettings = findViewById(R.id.progressBarSettings)
         tvSettingsStatus = findViewById(R.id.tvSettingsStatus)
 
-        // Retrieve the logged-in user's email session
-        val sharedPref = getSharedPreferences("UserPrefs", MODE_PRIVATE)
-        val userEmail = sharedPref.getString("logged_in_email", "")
+        val userEmail = sessionManager.getUserEmail()
+        val userName = sessionManager.getUserName()
+
+        tvCurrentName.text = userName.ifEmpty { "User Profile" }
+        tvCurrentEmail.text = userEmail.ifEmpty { "Not logged in" }
 
         btnUpdateSettings.setOnClickListener {
-            val newName = etUpdateName.text.toString().trim()
-            val newPassword = etUpdatePassword.text.toString().trim()
+            val newName = etUpdateName.text?.toString()?.trim() ?: ""
+            val newPassword = etUpdatePassword.text?.toString()?.trim() ?: ""
 
-            if (newName.isEmpty() && newPassword.isEmpty()) {
-                tvSettingsStatus.text = "Please enter a new name or password"
-                tvSettingsStatus.setTextColor(android.graphics.Color.RED)
+            val validationError = ValidationUtils.validateSettingsUpdateInput(newName, newPassword)
+            if (validationError != null) {
+                tvSettingsStatus.text = validationError
                 return@setOnClickListener
             }
 
-            if (userEmail.isNullOrEmpty()) {
-                tvSettingsStatus.text = "Session error. Please log out and log back in."
-                tvSettingsStatus.setTextColor(android.graphics.Color.RED)
+            if (userEmail.isEmpty()) {
+                tvSettingsStatus.text = "Session error. Please log in again."
                 return@setOnClickListener
             }
 
@@ -67,55 +81,40 @@ class SettingsActivity : AppCompatActivity() {
         tvSettingsStatus.text = ""
         btnUpdateSettings.isEnabled = false
 
-        executor.execute {
-            var resultMessage = ""
-            var isSuccess = false
+        val params = mapOf(
+            "email" to email,
+            "new_name" to newName,
+            "new_password" to newPassword
+        )
 
-            try {
-                // Ensure your PHP file is named correctly in your local htdocs folder
-                val url = URL("http://10.0.2.2/xpresso_api/update_settings.php")
-                val conn = url.openConnection() as HttpURLConnection
-                conn.requestMethod = "POST"
-                conn.doOutput = true
+        NetworkHelper.sendPostRequest(
+            urlString = ApiConfig.UPDATE_SETTINGS_URL,
+            postParams = params,
+            callback = object : NetworkHelper.NetworkCallback {
+                override fun onSuccess(responseString: String) {
+                    if (isFinishing || isDestroyed) return
+                    progressBarSettings.visibility = View.GONE
+                    btnUpdateSettings.isEnabled = true
 
-                val postData = "email=" + URLEncoder.encode(email, "UTF-8") +
-                        "&new_name=" + URLEncoder.encode(newName, "UTF-8") +
-                        "&new_password=" + URLEncoder.encode(newPassword, "UTF-8")
-
-                val writer = OutputStreamWriter(conn.outputStream)
-                writer.write(postData)
-                writer.flush()
-                writer.close()
-
-                if (conn.responseCode == HttpURLConnection.HTTP_OK) {
-                    val response = conn.inputStream.bufferedReader().use { it.readText() }
-                    val jsonResponse = JSONObject(response)
-                    isSuccess = jsonResponse.optString("status") == "success"
-                    resultMessage = jsonResponse.optString("message")
-                } else {
-                    resultMessage = "HTTP Error: ${conn.responseCode}"
+                    val response: ApiResponse<Unit> = JsonParser.parseSimpleResponse(responseString)
+                    if (response.isSuccess) {
+                        if (newName.isNotEmpty()) {
+                            sessionManager.updateUserName(newName)
+                        }
+                        Toast.makeText(this@SettingsActivity, "Profile updated successfully!", Toast.LENGTH_SHORT).show()
+                        finish()
+                    } else {
+                        tvSettingsStatus.text = response.message.ifEmpty { "Update failed." }
+                    }
                 }
-                conn.disconnect()
-            } catch (e: Exception) {
-                resultMessage = "Connection Failed: ${e.localizedMessage}"
-            }
 
-            handler.post {
-                progressBarSettings.visibility = View.GONE
-                btnUpdateSettings.isEnabled = true
-                if (isSuccess) {
-                    Toast.makeText(this@SettingsActivity, "Settings Saved!", Toast.LENGTH_SHORT).show()
-                    finish() // Close settings and return to Menu
-                } else {
-                    tvSettingsStatus.text = resultMessage
-                    tvSettingsStatus.setTextColor(android.graphics.Color.RED)
+                override fun onError(errorMessage: String) {
+                    if (isFinishing || isDestroyed) return
+                    progressBarSettings.visibility = View.GONE
+                    btnUpdateSettings.isEnabled = true
+                    tvSettingsStatus.text = errorMessage
                 }
             }
-        }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        executor.shutdown()
+        )
     }
 }

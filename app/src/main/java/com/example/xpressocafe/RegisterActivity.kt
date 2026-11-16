@@ -1,33 +1,32 @@
 package com.example.xpressocafe
 
+import android.graphics.Color
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.View
-import android.widget.Button
-import android.widget.EditText
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import org.json.JSONObject
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
-import java.net.URL
-import java.net.URLEncoder
-import java.util.concurrent.Executors
+import com.example.xpressocafe.api.ApiConfig
+import com.example.xpressocafe.models.ApiResponse
+import com.example.xpressocafe.network.NetworkHelper
+import com.example.xpressocafe.utils.JsonParser
+import com.example.xpressocafe.utils.ValidationUtils
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.textfield.TextInputEditText
 
+/**
+ * Register Activity handling new user registration.
+ */
 class RegisterActivity : AppCompatActivity() {
 
-    private lateinit var etRegName: EditText
-    private lateinit var etRegEmail: EditText
-    private lateinit var etRegPassword: EditText
-    private lateinit var btnRegisterUser: Button
+    private lateinit var etRegName: TextInputEditText
+    private lateinit var etRegEmail: TextInputEditText
+    private lateinit var etRegPassword: TextInputEditText
+    private lateinit var btnRegisterUser: MaterialButton
     private lateinit var progressBarReg: ProgressBar
     private lateinit var tvRegStatus: TextView
-
-    private val executor = Executors.newSingleThreadExecutor()
-    private val handler = Handler(Looper.getMainLooper())
+    private lateinit var tvLoginLink: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,18 +38,25 @@ class RegisterActivity : AppCompatActivity() {
         btnRegisterUser = findViewById(R.id.btnRegisterUser)
         progressBarReg = findViewById(R.id.progressBarReg)
         tvRegStatus = findViewById(R.id.tvRegStatus)
+        tvLoginLink = findViewById(R.id.tvLoginLink)
 
         btnRegisterUser.setOnClickListener {
-            val name = etRegName.text.toString().trim()
-            val email = etRegEmail.text.toString().trim()
-            val password = etRegPassword.text.toString().trim()
+            val name = etRegName.text?.toString()?.trim() ?: ""
+            val email = etRegEmail.text?.toString()?.trim() ?: ""
+            val password = etRegPassword.text?.toString()?.trim() ?: ""
 
-            if (name.isEmpty() || email.isEmpty() || password.isEmpty()) {
-                tvRegStatus.text = "Please fill in all fields"
+            val validationError = ValidationUtils.validateRegistrationInput(name, email, password)
+            if (validationError != null) {
+                tvRegStatus.text = validationError
+                tvRegStatus.setTextColor(Color.parseColor("#D32F2F"))
                 return@setOnClickListener
             }
 
             registerUser(name, email, password)
+        }
+
+        tvLoginLink.setOnClickListener {
+            finish()
         }
     }
 
@@ -59,69 +65,43 @@ class RegisterActivity : AppCompatActivity() {
         tvRegStatus.text = ""
         btnRegisterUser.isEnabled = false
 
-        executor.execute {
-            var resultMessage: String
-            var isSuccess = false
-            var conn: HttpURLConnection? = null
+        val params = mapOf(
+            "name" to name,
+            "email" to email,
+            "password" to pass
+        )
 
-            try {
-                val url = URL("http://10.0.2.2/xpresso_api/register.php")
-                conn = url.openConnection() as HttpURLConnection
-                conn.requestMethod = "POST"
-                conn.doOutput = true
-                conn.connectTimeout = 5000
-                conn.readTimeout = 5000
+        NetworkHelper.sendPostRequest(
+            urlString = ApiConfig.REGISTER_URL,
+            postParams = params,
+            callback = object : NetworkHelper.NetworkCallback {
+                override fun onSuccess(responseString: String) {
+                    if (isFinishing || isDestroyed) return
+                    progressBarReg.visibility = View.GONE
+                    btnRegisterUser.isEnabled = true
 
-                // Format data for POST request safely
-                val postData = "name=" + URLEncoder.encode(name, "UTF-8") +
-                        "&email=" + URLEncoder.encode(email, "UTF-8") +
-                        "&password=" + URLEncoder.encode(pass, "UTF-8")
-
-                val writer = OutputStreamWriter(conn.outputStream)
-                writer.write(postData)
-                writer.flush()
-                writer.close()
-
-                if (conn.responseCode == HttpURLConnection.HTTP_OK) {
-                    val responseString = conn.inputStream.bufferedReader().use { it.readText() }
-                    val jsonResponse = JSONObject(responseString)
-                    val status = jsonResponse.optString("status")
-                    resultMessage = jsonResponse.optString("message")
-
-                    if (status == "success") {
-                        isSuccess = true
+                    val response: ApiResponse<Unit> = JsonParser.parseSimpleResponse(responseString)
+                    if (response.isSuccess) {
+                        Toast.makeText(this@RegisterActivity, "Account created! Please sign in.", Toast.LENGTH_LONG).show()
+                        etRegName.text?.clear()
+                        etRegEmail.text?.clear()
+                        etRegPassword.text?.clear()
+                        tvRegStatus.text = "Account created successfully! You can now log in."
+                        tvRegStatus.setTextColor(Color.parseColor("#388E3C"))
+                    } else {
+                        tvRegStatus.text = response.message.ifEmpty { "Registration failed." }
+                        tvRegStatus.setTextColor(Color.parseColor("#D32F2F"))
                     }
-                } else {
-                    resultMessage = "HTTP Error: ${conn.responseCode}"
                 }
-            } catch (e: Exception) {
-                resultMessage = "Connection Failed: ${e.localizedMessage}"
-            } finally {
-                conn?.disconnect()
-            }
 
-            handler.post {
-                progressBarReg.visibility = View.GONE
-                btnRegisterUser.isEnabled = true
-
-                if (isSuccess) {
-                    Toast.makeText(this@RegisterActivity, "Registration Successful!", Toast.LENGTH_LONG).show()
-                    // Clear the fields after successful registration
-                    etRegName.text.clear()
-                    etRegEmail.text.clear()
-                    etRegPassword.text.clear()
-                    tvRegStatus.text = "Account created successfully!"
-                    tvRegStatus.setTextColor(android.graphics.Color.parseColor("#388E3C")) // Green
-                } else {
-                    tvRegStatus.text = resultMessage
-                    tvRegStatus.setTextColor(android.graphics.Color.parseColor("#D32F2F")) // Red
+                override fun onError(errorMessage: String) {
+                    if (isFinishing || isDestroyed) return
+                    progressBarReg.visibility = View.GONE
+                    btnRegisterUser.isEnabled = true
+                    tvRegStatus.text = errorMessage
+                    tvRegStatus.setTextColor(Color.parseColor("#D32F2F"))
                 }
             }
-        }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        executor.shutdown()
+        )
     }
 }

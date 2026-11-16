@@ -1,100 +1,222 @@
 package com.example.xpressocafe
 
+import android.content.Intent
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
+import android.view.Menu
+import android.view.MenuItem as OptionMenuItem
 import android.view.View
-import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
-import java.util.concurrent.Executors
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import com.example.xpressocafe.adapters.MenuItemAdapter
+import com.example.xpressocafe.api.ApiConfig
+import com.example.xpressocafe.models.ApiResponse
+import com.example.xpressocafe.models.MenuItem
+import com.example.xpressocafe.network.NetworkHelper
+import com.example.xpressocafe.utils.CartManager
+import com.example.xpressocafe.utils.JsonParser
+import com.example.xpressocafe.utils.SessionManager
+import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.card.MaterialCardView
+import com.google.android.material.chip.Chip
+import com.google.android.material.chip.ChipGroup
 
+/**
+ * Main Interactive Menu & Ordering Screen for XPRESSO Cafe.
+ */
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var tvMenuOutput: TextView
-    private lateinit var btnFetchMenu: Button
-    private lateinit var progressBar: ProgressBar
+    private lateinit var toolbarMain: MaterialToolbar
+    private lateinit var tvWelcomeUser: TextView
+    private lateinit var chipGroupCategories: ChipGroup
+    private lateinit var chipAll: Chip
+    private lateinit var chipHotCoffee: Chip
+    private lateinit var chipIcedCoffee: Chip
+    private lateinit var chipPastries: Chip
+    private lateinit var swipeRefreshMenu: SwipeRefreshLayout
+    private lateinit var rvMenuProducts: RecyclerView
+    private lateinit var progressBarMenu: ProgressBar
+    private lateinit var tvEmptyMenu: TextView
 
-    private val executor = Executors.newSingleThreadExecutor()
-    private val handler = Handler(Looper.getMainLooper())
+    private lateinit var cardBottomCart: MaterialCardView
+    private lateinit var tvCartBadgeCount: TextView
+    private lateinit var tvCartTotalPrice: TextView
+    private lateinit var btnViewCart: MaterialButton
+
+    private lateinit var sessionManager: SessionManager
+    private lateinit var menuAdapter: MenuItemAdapter
+    private var allMenuItems: List<MenuItem> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        sessionManager = SessionManager(this)
+
+        if (!sessionManager.isLoggedIn()) {
+            startActivity(Intent(this, LoginActivity::class.java))
+            finish()
+            return
+        }
+
         setContentView(R.layout.activity_main)
 
-        tvMenuOutput = findViewById(R.id.tvMenuOutput)
-        btnFetchMenu = findViewById(R.id.btnFetchMenu)
-        progressBar = findViewById(R.id.progressBar)
+        toolbarMain = findViewById(R.id.toolbarMain)
+        setSupportActionBar(toolbarMain)
 
-        btnFetchMenu.setOnClickListener {
+        tvWelcomeUser = findViewById(R.id.tvWelcomeUser)
+        chipGroupCategories = findViewById(R.id.chipGroupCategories)
+        chipAll = findViewById(R.id.chipAll)
+        chipHotCoffee = findViewById(R.id.chipHotCoffee)
+        chipIcedCoffee = findViewById(R.id.chipIcedCoffee)
+        chipPastries = findViewById(R.id.chipPastries)
+        swipeRefreshMenu = findViewById(R.id.swipeRefreshMenu)
+        rvMenuProducts = findViewById(R.id.rvMenuProducts)
+        progressBarMenu = findViewById(R.id.progressBarMenu)
+        tvEmptyMenu = findViewById(R.id.tvEmptyMenu)
+
+        cardBottomCart = findViewById(R.id.cardBottomCart)
+        tvCartBadgeCount = findViewById(R.id.tvCartBadgeCount)
+        tvCartTotalPrice = findViewById(R.id.tvCartTotalPrice)
+        btnViewCart = findViewById(R.id.btnViewCart)
+
+        val userName = sessionManager.getUserName()
+        tvWelcomeUser.text = if (userName.isNotEmpty()) "Welcome, $userName!" else "Welcome to XPRESSO Café!"
+
+        rvMenuProducts.layoutManager = LinearLayoutManager(this)
+        menuAdapter = MenuItemAdapter(emptyList()) {
+            updateCartBarUI()
+        }
+        rvMenuProducts.adapter = menuAdapter
+
+        swipeRefreshMenu.setOnRefreshListener {
             fetchMenuData()
         }
+
+        setupCategoryFilters()
+
+        val openCartAction = View.OnClickListener { showCartBottomSheet() }
+        cardBottomCart.setOnClickListener(openCartAction)
+        btnViewCart.setOnClickListener(openCartAction)
+
+        fetchMenuData()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val userName = sessionManager.getUserName()
+        tvWelcomeUser.text = if (userName.isNotEmpty()) "Welcome, $userName!" else "Welcome to XPRESSO Café!"
+        updateCartBarUI()
+    }
+
+    private fun setupCategoryFilters() {
+        chipGroupCategories.setOnCheckedStateChangeListener { _, checkedIds ->
+            if (checkedIds.isEmpty()) return@setOnCheckedStateChangeListener
+            val selectedCategory = when (checkedIds[0]) {
+                R.id.chipHotCoffee -> "Hot Coffee"
+                R.id.chipIcedCoffee -> "Iced Coffee"
+                R.id.chipPastries -> "Pastries"
+                else -> "All"
+            }
+            filterMenuItems(selectedCategory)
+        }
+    }
+
+    private fun filterMenuItems(category: String) {
+        val filtered = if (category == "All") {
+            allMenuItems
+        } else {
+            allMenuItems.filter { it.category.contains(category, ignoreCase = true) }
+        }
+        menuAdapter.updateData(filtered)
+        tvEmptyMenu.visibility = if (filtered.isEmpty()) View.VISIBLE else View.GONE
     }
 
     private fun fetchMenuData() {
-        progressBar.visibility = View.VISIBLE
-        tvMenuOutput.text = "Connecting to XAMPP server..."
+        progressBarMenu.visibility = View.VISIBLE
+        tvEmptyMenu.visibility = View.GONE
 
-        executor.execute {
-            var resultText: String
-            var conn: HttpURLConnection? = null
-            try {
-                // 10.0.2.2 routes to localhost on your Windows host from the Android Emulator
-                val url = URL("http://10.0.2.2/xpresso_api/get_menu.php")
-                conn = url.openConnection() as HttpURLConnection
-                conn.requestMethod = "GET"
-                conn.connectTimeout = 5000
-                conn.readTimeout = 5000
+        NetworkHelper.sendGetRequest(
+            urlString = ApiConfig.GET_MENU_URL,
+            callback = object : NetworkHelper.NetworkCallback {
+                override fun onSuccess(responseString: String) {
+                    if (isFinishing || isDestroyed) return
+                    progressBarMenu.visibility = View.GONE
+                    swipeRefreshMenu.isRefreshing = false
 
-                val responseCode = conn.responseCode
-                if (responseCode == HttpURLConnection.HTTP_OK) {
-                    val responseString = conn.inputStream.bufferedReader().use { it.readText() }
-                    val jsonResponse = JSONObject(responseString)
-                    val status = jsonResponse.optString("status", "")
-
-                    if (status == "success") {
-                        val productsArray = jsonResponse.optJSONArray("data")
-                        if (productsArray != null && productsArray.length() > 0) {
-                            val builder = StringBuilder()
-                            for (i in 0 until productsArray.length()) {
-                                val item = productsArray.getJSONObject(i)
-                                val name = item.optString("productName", item.optString("name", "Item"))
-                                val price = item.optString("price", "0.00")
-                                builder.append("${i + 1}. $name - R$price\n\n")
-                            }
-                            resultText = builder.toString().trimEnd()
-                        } else {
-                            resultText = "No products found."
-                        }
+                    val response: ApiResponse<List<MenuItem>> = JsonParser.parseMenuResponse(responseString)
+                    if (response.isSuccess && response.data != null) {
+                        allMenuItems = response.data
+                        filterMenuItems("All")
                     } else {
-                        val message = jsonResponse.optString("message", "")
-                        resultText = "API Error: $message"
+                        tvEmptyMenu.text = response.message.ifEmpty { "Failed to load menu." }
+                        tvEmptyMenu.visibility = View.VISIBLE
                     }
-                } else {
-                    resultText = "HTTP Error Code: $responseCode"
                 }
-            } catch (e: Exception) {
-                val errorMsg = e.localizedMessage ?: e.message ?: ""
-                resultText = "Connection Failed: $errorMsg\n\nNote: Ensure XAMPP is running and 10.0.2.2 is accessible."
-            } finally {
-                conn?.disconnect()
-            }
 
-            handler.post {
-                if (!isFinishing && !isDestroyed) {
-                    progressBar.visibility = View.GONE
-                    tvMenuOutput.text = resultText
+                override fun onError(errorMessage: String) {
+                    if (isFinishing || isDestroyed) return
+                    progressBarMenu.visibility = View.GONE
+                    swipeRefreshMenu.isRefreshing = false
+                    tvEmptyMenu.text = errorMessage
+                    tvEmptyMenu.visibility = View.VISIBLE
                 }
             }
+        )
+    }
+
+    private fun updateCartBarUI() {
+        val count = CartManager.getItemCount()
+        if (count > 0) {
+            cardBottomCart.visibility = View.VISIBLE
+            tvCartBadgeCount.text = getString(R.string.label_items_count, count)
+            tvCartTotalPrice.text = CartManager.formatPrice(CartManager.getTotalAmount())
+        } else {
+            cardBottomCart.visibility = View.GONE
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        executor.shutdown()
+    private fun showCartBottomSheet() {
+        val bottomSheet = CartBottomSheetDialogFragment.newInstance()
+        bottomSheet.onOrderSubmittedListener = {
+            updateCartBarUI()
+            Toast.makeText(this, "Your order has been recorded!", Toast.LENGTH_SHORT).show()
+        }
+        bottomSheet.show(supportFragmentManager, "CartBottomSheet")
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.main_menu, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: OptionMenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.action_cart -> {
+                showCartBottomSheet()
+                true
+            }
+            R.id.action_orders -> {
+                startActivity(Intent(this, OrderHistoryActivity::class.java))
+                true
+            }
+            R.id.action_settings -> {
+                startActivity(Intent(this, SettingsActivity::class.java))
+                true
+            }
+            R.id.action_logout -> {
+                sessionManager.logout()
+                CartManager.clearCart()
+                Toast.makeText(this, "Logged out successfully.", Toast.LENGTH_SHORT).show()
+                startActivity(Intent(this, LoginActivity::class.java))
+                finish()
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
     }
 }

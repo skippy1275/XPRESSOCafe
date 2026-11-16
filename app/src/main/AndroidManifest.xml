@@ -14,14 +14,25 @@
         android:usesCleartextTraffic="true">
 
         <activity
+            android:name="com.example.xpressocafe.OrderHistoryActivity"
+            android:exported="false"
+            android:label="@string/title_order_history" />
+
+        <activity
             android:name="com.example.xpressocafe.SettingsActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:label="@string/title_settings" />
+
         <activity
             android:name="com.example.xpressocafe.MainActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:label="@string/title_menu" />
+
         <activity
             android:name="com.example.xpressocafe.RegisterActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:label="@string/register_title" />
+
         <activity
             android:name="com.example.xpressocafe.LoginActivity"
             android:exported="true">
