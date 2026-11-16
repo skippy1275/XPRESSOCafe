@@ -92,7 +92,7 @@ INSERT INTO `products` (`product_id`, `category_id`, `productName`, `description
 -- Sample Test User (Password: password123)
 -- Hash generated via BCRYPT: $2y$10$wKkS3n6E2l4yC7a9O8zM7uVw8nQ3b1a2c3d4e5f6g7h8i9j0k1l2m
 INSERT INTO `users` (`user_id`, `name`, `email`, `password`, `created_at`) VALUES
-(1, 'Test User', 'test@xpresso.co.za', '$2y$10$e0MYzXyjpJS7Pd0RVvHwHe1mN0p.zG/vFz/v4V6wN.3/oQ0K7aX1C', NOW());
+(1, 'Test User', 'test@xpresso.co.za', '$2y$10$ohbMgvx9mVpjWLUymg4iMusKSRJ3S7ZPd/ZS7TcvOnN3z4mwqxa66', NOW());
 
 -- Sample Initial Order
 INSERT INTO `orders` (`order_id`, `user_id`, `total_amount`, `status`, `created_at`) VALUES
